@@ -208,7 +208,7 @@ class SingleFunctionOptimizer:
             user_count (float): 用户数量
             
         Returns:
-            float: 总成本
+            tuple: (total_cost, compute_storage_cost, communication_cost) 总成本、计算存储成本、通信成本
         """
         # 1. 计算计算和存储成本
         compute_storage_cost = 0
@@ -250,7 +250,7 @@ class SingleFunctionOptimizer:
         # 3. 总成本 = 计算存储成本 + 通信成本
         total_cost = compute_storage_cost + communication_cost
         
-        return total_cost
+        return total_cost, compute_storage_cost, communication_cost
     
     def is_deployment_feasible(self, deployment):
         """
@@ -337,7 +337,7 @@ class SingleFunctionOptimizer:
                 
                 if max_users > 0:  # 如果方案可行
                     # 计算成本
-                    total_cost = self.calculate_total_cost(current_deployment, max_users)
+                    total_cost, compute_storage_cost, communication_cost = self.calculate_total_cost(current_deployment, max_users)
                     # 计算利润
                     profit = max_users * self.profit_per_user - total_cost
                     
@@ -410,7 +410,9 @@ class SingleFunctionOptimizer:
         单功能部署优化
         
         Returns:
-            tuple: (cost, profit, user_count) 如果找到有效方案，否则返回None
+            tuple: (cost, compute_storage_cost, communication_cost, profit, user_count, 
+                   used_nodes_count, avg_modules_per_node) 
+                   如果找到有效方案，否则返回None
         """
         # 搜索所有可行的部署方案
         self.search_all_deployments()
@@ -419,8 +421,24 @@ class SingleFunctionOptimizer:
         if not self.all_solutions:
             return None
         
-        # 找到最佳方案：先按利润降序，再按成本升序
-        best_solution = max(self.all_solutions, key=lambda x: (x[1], -x[0]))
+        # 为每个方案计算详细成本
+        detailed_solutions = []
+        for solution in self.all_solutions:
+            cost, profit, user_count, deployment = solution
+            _, compute_storage_cost, communication_cost = self.calculate_total_cost(deployment, user_count)
+            
+            # 计算使用的节点数量
+            used_nodes_count = len(set(deployment))
+            
+            # 计算平均每节点模块数
+            avg_modules_per_node = self.module_count / used_nodes_count if used_nodes_count > 0 else 0
+            
+            detailed_solutions.append((cost, compute_storage_cost, communication_cost, profit, 
+                                      user_count, used_nodes_count, avg_modules_per_node, deployment))
         
-        # 返回成本、利润和用户数
-        return best_solution[:3] 
+        # 找到最佳方案：先按用户量降序，再按成本升序,按利润降序
+        detailed_solutions.sort(key=lambda x: (-x[3],-x[4], x[0]))
+        best_solution = detailed_solutions[0]
+        
+        # 返回成本、计算存储成本、通信成本、利润、用户数、使用节点数、平均每节点模块数
+        return best_solution[:7] 

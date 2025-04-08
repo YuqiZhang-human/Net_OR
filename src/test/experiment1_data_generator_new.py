@@ -24,10 +24,10 @@ model_dict = {
 
 # 实验参数
 node_count = [20]  # 物理网络的节点数量
-module_count = [2, 3, 4, 5, 6]  # 模型切割的块数
-node_compute_options = [1000, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 30000, 50000, 100000]  # 计算能力
-node_storage_options = [3000, 5000, 8000, 10000, 20000, 4000050000, 60000, 70000, 80000, 100000]  # 存储能力
-profit_per_users = [ 50, 80,100, 200, 300, 400, 500, 600, 700]  # 每用户利润
+module_count = [2]  # 模型切割的块数
+node_compute_options = [7800, 9100, 10400, 11700, 13000 ]  # 计算能力
+node_storage_options = [23400, 27300, 31200, 35100, 39000 ]  # 存储能力
+profit_per_users = [0, 25, 50, 75, 100, 125, 150, 175, 200]  # 每用户利润
 bandwidth_cost_fixed = [0.1]  # 固定的带宽成本
 bandwidths = [100]  # 链路带宽
 gpu_costs_options = [0.004, 0.006, 0.008, 0.010, 0.012]  # GPU成本
@@ -371,7 +371,7 @@ def combine_batch_files(batch_count):
     combined_df = pd.concat(all_dfs, ignore_index=True)
     
     # 保存合并后的DataFrame
-    output_file = os.path.join(output_dir, 'experiment1_data.csv')
+    output_file = os.path.join(output_dir, 'experiment1_data_module-2.csv')
     combined_df.to_csv(output_file, index=False)
     
     print(f"已将 {len(batch_files)} 个批次文件合并为 {output_file}")
@@ -379,7 +379,7 @@ def combine_batch_files(batch_count):
     # 复制到src/test目录
     test_dir = os.path.join(current_dir)
     os.makedirs(test_dir, exist_ok=True)
-    test_output_file = os.path.join(test_dir, 'experiment1_data.csv')
+    test_output_file = os.path.join(test_dir, 'experiment1_data_module-2.csv')
     
     combined_df.to_csv(test_output_file, index=False)
     print(f"已复制数据到 {test_output_file}")

@@ -205,7 +205,7 @@ class MultiFunctionOptimizer:
             user_count (float): 用户数量
             
         Returns:
-            float: 总成本
+            tuple: (total_cost, compute_storage_cost, communication_cost) 总成本、计算存储成本、通信成本
         """
         # 1. 计算计算和存储成本
         compute_storage_cost = 0
@@ -248,7 +248,7 @@ class MultiFunctionOptimizer:
         # 3. 总成本 = 计算存储成本 + 通信成本
         total_cost = compute_storage_cost + communication_cost
         
-        return total_cost
+        return total_cost, compute_storage_cost, communication_cost
     
     def is_deployment_feasible(self, deployment):
         """
@@ -328,7 +328,7 @@ class MultiFunctionOptimizer:
                 
                 if max_users > 0:  # 如果方案可行
                     # 计算成本
-                    total_cost = self.calculate_total_cost(current_deployment, max_users)
+                    total_cost, compute_storage_cost, communication_cost = self.calculate_total_cost(current_deployment, max_users)
                     # 计算利润
                     profit = max_users * self.profit_per_user - total_cost
                     
@@ -426,7 +426,7 @@ class MultiFunctionOptimizer:
         
         Returns:
             tuple: (min_cost_plan, max_profit_plan, min_profit_plan, max_users_plan)
-            每个方案是 (成本, 利润, 用户数)
+            每个方案是 (成本, 计算存储成本, 通信成本, 利润, 用户数, 使用节点数, 平均模块/节点)
         """
         # 搜索所有可行的部署方案
         self.search_all_deployments()
@@ -435,37 +435,54 @@ class MultiFunctionOptimizer:
         if not self.all_solutions:
             return None
         
+        # 为每个方案计算详细成本
+        detailed_solutions = []
+        for solution in self.all_solutions:
+            cost, profit, user_count, deployment = solution
+            _, compute_storage_cost, communication_cost = self.calculate_total_cost(deployment, user_count)
+            
+            # 计算使用的节点数量
+            used_nodes_count = len(set(deployment))
+            
+            # 计算平均每节点模块数
+            avg_modules_per_node = self.module_count / used_nodes_count if used_nodes_count > 0 else 0
+            
+            detailed_solutions.append((cost, compute_storage_cost, communication_cost, profit, user_count, 
+                                      used_nodes_count, avg_modules_per_node, deployment))
+        
         # 分离成本、利润和用户数
-        costs = [s[0] for s in self.all_solutions]
-        profits = [s[1] for s in self.all_solutions]
-        user_counts = [s[2] for s in self.all_solutions]
+        costs = [s[0] for s in detailed_solutions]
+        profits = [s[3] for s in detailed_solutions]
+        user_counts = [s[4] for s in detailed_solutions]
         
         # 找到最小成本方案 - 使用稳定的排序和选择逻辑
+        # 现在按成本升序、利润降序排序，确保在相同成本下选择利润最高的
         min_cost = min(costs)
-        min_cost_candidates = [(i, s) for i, s in enumerate(self.all_solutions) if s[0] == min_cost]
-        min_cost_candidates.sort(key=lambda x: (x[1][0], -x[1][2], tuple(x[1][3])))  # 按成本、负用户数、部署方案排序
+        min_cost_candidates = [(i, s) for i, s in enumerate(detailed_solutions) if s[0] == min_cost]
+        min_cost_candidates.sort(key=lambda x: (-x[1][3], x[1][0], tuple(x[1][7])))  # 按负利润（即利润降序）、成本升序排序
         min_cost_idx = min_cost_candidates[0][0]
-        min_cost_plan = self.all_solutions[min_cost_idx][:3]  # 只取成本、利润和用户数
+        min_cost_plan = detailed_solutions[min_cost_idx][:7]  # 取成本、计算存储成本、通信成本、利润、用户数、节点数、平均模块数
         
         # 找到最大利润方案 - 使用稳定的排序和选择逻辑
         max_profit = max(profits)
-        max_profit_candidates = [(i, s) for i, s in enumerate(self.all_solutions) if s[1] == max_profit]
-        max_profit_candidates.sort(key=lambda x: (x[1][0], tuple(x[1][3])))  # 按成本、部署方案排序
+        max_profit_candidates = [(i, s) for i, s in enumerate(detailed_solutions) if s[3] == max_profit]
+        max_profit_candidates.sort(key=lambda x: (x[1][0], tuple(x[1][7])))  # 按成本、部署方案排序
         max_profit_idx = max_profit_candidates[0][0]
-        max_profit_plan = self.all_solutions[max_profit_idx][:3]
+        max_profit_plan = detailed_solutions[max_profit_idx][:7]
         
         # 找到最小利润方案 - 使用稳定的排序和选择逻辑
         min_profit = min(profits)
-        min_profit_candidates = [(i, s) for i, s in enumerate(self.all_solutions) if s[1] == min_profit]
-        min_profit_candidates.sort(key=lambda x: (x[1][0], tuple(x[1][3])))  # 按成本、部署方案排序
+        min_profit_candidates = [(i, s) for i, s in enumerate(detailed_solutions) if s[3] == min_profit]
+        min_profit_candidates.sort(key=lambda x: (x[1][0], tuple(x[1][7])))  # 按成本、部署方案排序
         min_profit_idx = min_profit_candidates[0][0]
-        min_profit_plan = self.all_solutions[min_profit_idx][:3]
+        min_profit_plan = detailed_solutions[min_profit_idx][:7]
         
         # 找到最大用户数方案 - 使用稳定的排序和选择逻辑
         max_users = max(user_counts)
-        max_users_candidates = [(i, s) for i, s in enumerate(self.all_solutions) if s[2] == max_users]
-        max_users_candidates.sort(key=lambda x: (x[1][0], tuple(x[1][3])))  # 按成本、部署方案排序
+        max_users_candidates = [(i, s) for i, s in enumerate(detailed_solutions) if s[4] == max_users]
+        # 按用户量降序、成本升序、利润降序排序
+        max_users_candidates.sort(key=lambda x: (-x[1][4], x[1][0], -x[1][3], tuple(x[1][7])))
         max_users_idx = max_users_candidates[0][0]
-        max_users_plan = self.all_solutions[max_users_idx][:3]
+        max_users_plan = detailed_solutions[max_users_idx][:7]
         
         return (min_cost_plan, max_profit_plan, min_profit_plan, max_users_plan) 
