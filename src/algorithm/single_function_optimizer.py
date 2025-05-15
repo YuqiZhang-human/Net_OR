@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import numpy as np
+import math
 from collections import defaultdict
 import copy
 
@@ -135,12 +136,13 @@ class SingleFunctionOptimizer:
         """
         计算给定部署方案的最大用户数量
         基于木桶原理，找到所有资源限制中的最小值
+        并向下取整以确保返回整数用户数
         
         Args:
             deployment (list): 部署方案，每个元素是节点索引
             
         Returns:
-            float: 最大用户数量
+            int: 最大用户数量(整数)
         """
         # 1. 计算节点资源限制
         node_resource_limits = []
@@ -160,12 +162,12 @@ class SingleFunctionOptimizer:
             
             # 如果算力需求大于0，计算基于算力的最大用户数
             if node_compute_usage[node_idx] > 0:
-                compute_limit = compute_capacity / node_compute_usage[node_idx]
+                compute_limit = math.floor(compute_capacity / node_compute_usage[node_idx])
                 node_resource_limits.append(compute_limit)
             
             # 如果存储需求大于0，计算基于存储的最大用户数
             if node_storage_usage[node_idx] > 0:
-                storage_limit = storage_capacity / node_storage_usage[node_idx]
+                storage_limit = math.floor(storage_capacity / node_storage_usage[node_idx])
                 node_resource_limits.append(storage_limit)
         
         # 2. 计算链路带宽限制
@@ -189,7 +191,7 @@ class SingleFunctionOptimizer:
             # 计算基于带宽的最大用户数
             data_size = self.get_data_size(i)
             if data_size > 0:  # 避免除以零
-                link_limit = bandwidth / data_size
+                link_limit = math.floor(bandwidth / data_size)
                 link_bandwidth_limits.append(link_limit)
         
         # 3. 木桶原理：系统整体最大用户量 = 所有限制中的最小值
@@ -197,7 +199,7 @@ class SingleFunctionOptimizer:
         if not all_limits:
             return 0  # 如果没有有效限制，返回0
         
-        return min(all_limits)
+        return min(all_limits)  # 最小值已经是取整后的结果
     
     def calculate_total_cost(self, deployment, user_count):
         """
